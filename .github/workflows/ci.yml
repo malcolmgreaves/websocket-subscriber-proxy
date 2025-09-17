@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  precheck:
+    name: Detect documentation-only changes to short-circuit CI.
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.setskip.outputs.skip }}
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Determine change scope vs main
+      id: setskip
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Make sure we have the latest main ref
+        git fetch --no-tags --prune --depth=1 origin main
+
+        # List changed files vs merge-base with main (adds rename detection)
+        mapfile -t CHANGED < <(git diff --name-only --diff-filter=ACMRT -M origin/main...HEAD)
+
+        echo "Changed files:"
+        printf ' - %s\n' "${CHANGED[@]:-}"
+
+        # No changes (shouldn't happen on PR), do not skip
+        if [[ ${#CHANGED[@]} -eq 0 ]]; then
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Filter out files that are in docs/** or end with .md anywhere
+        # Anything left in OTHER means we must run the full workflow
+        OTHER=""
+        for f in "${CHANGED[@]}"; do
+          if [[ "$f" == docs/* || "$f" == *.md ]]; then
+            continue
+          else
+            # Also allow deeper docs paths like docs/a/b/c
+            if [[ "$f" == docs/* ]]; then
+              continue
+            fi
+            OTHER+="${f}"$'\n'
+          fi
+        done
+
+        if [[ -z "$OTHER" ]]; then
+          echo "Only docs/** and/or *.md changed. Skipping the rest of the workflow."
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Non-docs/markdown files detected:"
+          printf '%s' "$OTHER"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Early success for docs/markdown-only change
+      if: steps.setskip.outputs.skip == 'true'
+      run: |
+        echo "Documentation-only changes detected; finishing workflow early!"
+
+  build-and-test:
+    name: "Lints & compiles Rust code and runs tests."
+    needs: precheck
+    if: needs.precheck.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Rust (stable)
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy,rustfmt
+
+    - name: Cache Rust build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Install and Run pre-commit hooks
+      uses: pre-commit/action@v3.0.1
+      with:
+        extra_args: --all-files
+
+    - name: Lint
+      run: cargo check
+
+    - name: Compile
+      run: cargo build
+
+    - name: Test
+      run: cargo test
