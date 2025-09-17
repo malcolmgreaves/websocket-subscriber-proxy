@@ -1,0 +1,40 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.6.0
+  hooks:
+  - id: trailing-whitespace
+  - id: end-of-file-fixer
+    exclude: |
+      (?x)^(.*\.warc)$
+  - id: check-yaml
+    args:
+    - --unsafe
+  - id: pretty-format-json
+    args:
+    - --autofix
+    - --no-sort-keys
+    - "--indent=  "
+  - id: check-added-large-files
+  - id: check-merge-conflict
+  - id: check-toml
+
+- repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+  rev: v2.15.0
+  hooks:
+  - id: pretty-format-toml
+    args: [--autofix, --no-sort]
+    exclude: Cargo.lock
+  - id: pretty-format-yaml
+    args: [--autofix, --preserve-quotes]
+
+- repo: local
+  hooks:
+  - id: fmt
+    name: Rust code Formatting
+    description: Format files with cargo fmt.
+    entry: cargo fmt
+    language: system
+    types: [rust]
+    args: [--]
