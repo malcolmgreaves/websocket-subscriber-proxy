@@ -2,6 +2,11 @@
 
 A websocket proxy server. Provides a many-to-one style subscription: many clients proxied to a single producer.
 
+By default, only lets publishers send messages to subscribers. However, the websocket proxy server supports subscribers
+sending messages to the single publisher too. The publisher will not know the source of the message as it is proxied.
+
+Any response from the publisher will be visible to all subscribers.
+
 ## Demo
 
 Make sure to install [`websocat`](https://github.com/vi/websocat) with `cargo install websocat`.
@@ -10,6 +15,7 @@ Make sure to install [`websocat`](https://github.com/vi/websocat) with `cargo in
 2. Register a publisher: `websocat ws://0.0.0.0:8080/publish/1d103620-2534-4ba8-8836-fe397b46ee18`
 3. Regsiter one or more subscribers: `websocat ws://0.0.0.0:8080/subscribe/1d103620-2534-4ba8-8836-fe397b46ee18`
 
+If you want to enable subscribers to send messages to the publisher, then start with `ENABLE_BIDIRECTIONAL=1`.
 
 ## Development
 
